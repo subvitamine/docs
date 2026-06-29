@@ -1,0 +1,205 @@
+---
+title: 'ARayPush Class Reference for Laravel A-Ray'
+sidebarTitle: 'ARayPush'
+description: 'Full reference for ARayPush — the push object you build by adding commits before sending it to A-Ray via the ARay facade in Laravel.'
+---
+
+`ARayPush` represents a single monitoring event in A-Ray. Think of it as a container: you describe what happened by attaching one or more **commits** — each commit being a labelled snapshot of data with a status — and then you hand the finished push to `ARay::push()` or `ARay::pushMultiple()` to send it to the platform.
+
+Build a push by chaining `addCommit()` calls, set optional metadata with `setMeta()` and `setType()`, then send it. You rarely need to call any other setters directly.
+
+---
+
+## CommitStatus Enum
+
+Every commit requires a status drawn from the `CommitStatus` enum. Import it alongside `ARay`:
+
+```php
+use Subvitamine\LaravelARay\CommitStatus;
+```
+
+| Value | String | Meaning |
+|---|---|---|
+| `CommitStatus::SUCCESS` | `'SUCCESS'` | The operation completed successfully. |
+| `CommitStatus::INFO` | `'INFO'` | Informational step; neutral outcome. |
+| `CommitStatus::WARNING` | `'WARNING'` | The operation completed but with a concern worth noting. |
+| `CommitStatus::ERROR` | `'ERROR'` | The operation failed. Triggers a notification if `A_RAY_NOTIFY_ERRORS_ENABLED` is `true`. |
+
+---
+
+## Creating an ARayPush
+
+### ARay::initPush() *(recommended)*
+
+Always create a push through the `ARay` facade rather than calling `new ARayPush()` directly. `initPush()` is the canonical factory and ensures the object is constructed correctly.
+
+<ParamField path="label" type="string" required>
+  A human-readable name for the push event shown in the A-Ray dashboard.
+</ParamField>
+
+<ParamField path="startAt" type="Carbon" default="Carbon::now()">
+  The timestamp marking the beginning of the event. Defaults to the current time.
+</ParamField>
+
+```php
+use Subvitamine\LaravelARay\ARay;
+
+$push = ARay::initPush('Payment flow');
+```
+
+---
+
+## Methods
+
+### addCommit()
+
+Adds a commit (a labelled data snapshot) to the push. Returns `$this`, so calls can be chained fluently. The method automatically captures the calling class name and line number via `debug_backtrace()` and stores them alongside the commit content for richer context in the dashboard.
+
+<ParamField path="label" type="string" required>
+  A short description of what this commit represents, e.g. `'Cart validated'`.
+</ParamField>
+
+<ParamField path="content" type="array" required>
+  Arbitrary key-value data to attach to the commit. Can be any associative array — request payloads, computed values, counts, etc.
+</ParamField>
+
+<ParamField path="status" type="CommitStatus" required>
+  One of `CommitStatus::SUCCESS`, `CommitStatus::INFO`, `CommitStatus::WARNING`, or `CommitStatus::ERROR`.
+</ParamField>
+
+<ParamField path="startAt" type="Carbon" default="Carbon::now()">
+  The timestamp for this specific commit. Defaults to now.
+</ParamField>
+
+**Returns:** `ARayPush` — the same instance, for fluent chaining.
+
+<Warning>
+  `addCommit()` throws an `\Exception` if you attempt to add more than **20 commits** to a single push. Split large flows across multiple pushes if needed.
+</Warning>
+
+---
+
+### setType()
+
+Sets the push type. The type is used by A-Ray to categorise events in the dashboard.
+
+<ParamField path="type" type="string" required>
+  Must be exactly `'DEBUG'` (the default) or `'REQUEST'`. Any other value throws an `\Exception`.
+</ParamField>
+
+```php
+$push->setType('REQUEST');
+```
+
+---
+
+### setMeta()
+
+Attaches arbitrary key-value metadata to the push. Useful for adding routing, environment, or other contextual information that applies to the entire event rather than a single commit.
+
+<ParamField path="meta" type="array" required>
+  An associative array of metadata, e.g. `['route' => 'api.orders.store', 'method' => 'POST']`.
+</ParamField>
+
+```php
+$push->setMeta([
+    'route'  => 'api.checkout',
+    'method' => 'POST',
+    'url'    => 'https://example.com/api/checkout',
+]);
+```
+
+---
+
+### setLabel()
+
+Overrides the push label set during construction.
+
+<ParamField path="label" type="string" required>
+  The new label string.
+</ParamField>
+
+---
+
+### setStartAt()
+
+Overrides the start timestamp set during construction.
+
+<ParamField path="startAt" type="Carbon" required>
+  A `Carbon` instance representing when the event began.
+</ParamField>
+
+---
+
+### setEndAt()
+
+Sets the end timestamp on the push. You do not normally need to call this yourself — `ARay::push()` sets it automatically. You **do** need to call it when using `ARay::pushMultiple()`, since that method does not set `endAt` automatically.
+
+<ParamField path="endAt" type="Carbon|mixed" required>
+  A `Carbon` instance representing when the event finished.
+</ParamField>
+
+---
+
+### toJson()
+
+Serialises the push into an array payload suitable for the A-Ray API. Called internally by `ARay::push()` and `ARay::pushMultiple()`; you rarely need to call it directly.
+
+**Returns:** `array` — the full push payload including label, type, meta, timestamps, and all commits.
+
+<ResponseField name="label" type="string">Label of the push.</ResponseField>
+<ResponseField name="type" type="string">`'DEBUG'` or `'REQUEST'`.</ResponseField>
+<ResponseField name="meta" type="array">Metadata attached via `setMeta()`.</ResponseField>
+<ResponseField name="startAt" type="string">Start timestamp formatted as `Y-m-d H:i:s.u`.</ResponseField>
+<ResponseField name="endAt" type="string">End timestamp formatted as `Y-m-d H:i:s.u`.</ResponseField>
+<ResponseField name="commits" type="array">Array of commit objects, each with `label`, `content`, `isAt`, and `status`.</ResponseField>
+
+---
+
+### Getter Methods
+
+These read-only methods return the current state of the push and are mostly used internally.
+
+| Method | Return type | Description |
+|---|---|---|
+| `getLabel()` | `string` | Returns the push label. |
+| `getStartAt()` | `Carbon` | Returns the start timestamp. |
+| `getEndAt()` | `mixed` | Returns the end timestamp (may be `null` before `push()` is called). |
+| `getCommits()` | `array` | Returns all commits added so far. |
+| `getMeta()` | `array` | Returns the metadata array. |
+| `getType()` | `mixed` | Returns `'DEBUG'` or `'REQUEST'`. |
+
+---
+
+## Complete Fluent Chaining Example
+
+The most common pattern: create a push, chain commits as your code progresses, then send it.
+
+```php
+use Subvitamine\LaravelARay\ARay;
+use Subvitamine\LaravelARay\CommitStatus;
+
+$push = ARay::initPush('Payment flow')
+    ->addCommit('Cart validated', ['items' => 3], CommitStatus::SUCCESS)
+    ->addCommit('Charge processed', ['amount' => 99.00], CommitStatus::SUCCESS);
+
+ARay::push($push);
+```
+
+For a flow that can fail, mix statuses to give A-Ray a clear picture:
+
+```php
+use Subvitamine\LaravelARay\ARay;
+use Subvitamine\LaravelARay\CommitStatus;
+
+$push = ARay::initPush('Subscription renewal');
+
+try {
+    $result = chargeCard($customerId);
+    $push->addCommit('Card charged', ['transaction_id' => $result->id], CommitStatus::SUCCESS);
+} catch (\Throwable $e) {
+    $push->addCommit('Card charge failed', ['error' => $e->getMessage()], CommitStatus::ERROR);
+}
+
+ARay::push($push);
+```

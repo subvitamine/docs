@@ -1,0 +1,62 @@
+---
+title: 'Commit Status Levels in Laravel A-Ray'
+sidebarTitle: 'Commit Statuses'
+description: 'Laravel A-Ray provides four commit status levels — SUCCESS, INFO, WARNING, and ERROR — to classify each step inside a push for easy monitoring.'
+---
+
+Every commit inside a push carries a **status** that classifies the outcome of that step. Statuses serve two purposes: they give you an at-a-glance health view in the A-Ray dashboard, and they can trigger downstream notifications when things go wrong. Laravel A-Ray defines four status levels via the `CommitStatus` enum.
+
+## Status Levels
+
+<CardGroup cols={2}>
+  <Card title="SUCCESS" icon="circle-check" color="#22c55e">
+    The step completed without any issues. Use this to confirm that a critical operation — a payment, a database write, an external API call — finished as expected.
+  </Card>
+  <Card title="INFO" icon="circle-info" color="#3b82f6">
+    A neutral, informational step. Use this to record context or intermediate state that is worth capturing but does not indicate any problem (e.g. "Cache populated", "Feature flag evaluated").
+  </Card>
+  <Card title="WARNING" icon="triangle-exclamation" color="#f59e0b">
+    Something unexpected but non-fatal occurred. The overall flow continued, but the situation may deserve attention (e.g. a cache miss, a degraded-mode fallback, a slow query that exceeded a threshold).
+  </Card>
+  <Card title="ERROR" icon="circle-xmark" color="#ef4444">
+    The step failed. If error notifications are enabled, every commit with this status can trigger a log entry on your configured notification channel. Use this status for genuine failures that need investigation.
+  </Card>
+</CardGroup>
+
+## Using Statuses in Code
+
+Import `CommitStatus` from the package namespace and pass the appropriate enum case as the third argument to `addCommit()`:
+
+```php
+use Subvitamine\LaravelARay\CommitStatus;
+
+$push->addCommit('Cache miss',       ['key'  => 'user:42'], CommitStatus::WARNING);
+$push->addCommit('Database query',   ['rows' => 10],        CommitStatus::SUCCESS);
+$push->addCommit('Notification sent',['channel' => 'mail'], CommitStatus::INFO);
+$push->addCommit('Charge failed',    ['code'  => 'insufficient_funds'], CommitStatus::ERROR);
+```
+
+All four cases are backed by their string equivalents (`'SUCCESS'`, `'INFO'`, `'WARNING'`, `'ERROR'`), which is what you will see in the raw JSON payload sent to A-Ray.
+
+## Error Notifications
+
+When `A_RAY_NOTIFY_ERRORS_ENABLED=true` is set in your environment (and a notification channel is configured), Laravel A-Ray inspects every push after it is sent. If any commit inside the push carries a `CommitStatus::ERROR` status, the package writes an error-level log entry to the configured channel:
+
+```
+A Ray error : <push label> : <comma-separated list of error commit labels>
+```
+
+This makes it straightforward to pipe A-Ray error events into Slack, PagerDuty, or any other Laravel log channel driver.
+
+<Tip>
+  Use `ERROR` status sparingly. If error notifications are enabled, **every commit with `ERROR` status triggers a log entry** — which can mean a Slack alert, a webhook call, or similar depending on your channel configuration. Reserve `ERROR` for genuine failures that require immediate attention, and prefer `WARNING` for degraded-but-recoverable situations.
+</Tip>
+
+## Quick Reference
+
+| Enum case | String value | Triggers error notification? | Typical use |
+|---|---|---|---|
+| `CommitStatus::SUCCESS` | `SUCCESS` | No | Operation completed normally |
+| `CommitStatus::INFO` | `INFO` | No | Neutral informational checkpoint |
+| `CommitStatus::WARNING` | `WARNING` | No | Unexpected but non-fatal condition |
+| `CommitStatus::ERROR` | `ERROR` | **Yes** | Operation failed; needs investigation |

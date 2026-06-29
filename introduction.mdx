@@ -1,0 +1,54 @@
+---
+title: 'Laravel A-Ray: Debug & Monitor Your Laravel Application'
+sidebarTitle: 'Introduction'
+description: 'Learn how Laravel A-Ray connects your Laravel app to the A-Ray platform for structured debugging, error tracking, and API health monitoring.'
+---
+
+Laravel A-Ray is a first-party Laravel package that bridges your application to the **A-Ray monitoring platform**. It gives developers a structured, code-driven way to send debugging data, track errors in real time, and monitor the health of your API endpoints — all without leaving the Laravel ecosystem.
+
+Whether you are building a new application or maintaining a production system, Laravel A-Ray helps you gain visibility into what your code is actually doing, when it does it, and what went wrong when it doesn't.
+
+---
+
+## What is A-Ray?
+
+A-Ray is a monitoring and observability platform designed for Laravel applications. Rather than simply logging raw text to files or a generic log service, A-Ray introduces two core concepts:
+
+- **Pushes** — a named unit of work that groups together one or more related events. A push has a label, a start time, an end time, and a type (e.g. `DEBUG` or `REQUEST`).
+- **Commits** — individual checkpoints added to a push. Each commit carries a message, a structured data payload, a timestamp, and a status (`SUCCESS`, `INFO`, `WARNING`, or `ERROR`). Think of them as annotated breadcrumbs inside a larger trace.
+
+When you call `ARay::push()`, the full push — including all its commits — is sent to the A-Ray platform, where it can be inspected, filtered, and correlated with other pushes from the same project. A private key ties every push to your project, so data is always scoped correctly.
+
+---
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Structured Pushes" icon="arrow-up">
+    Wrap any unit of work in a named push and attach as many commits as you need (up to 20 per push). Each commit captures its call-site class, line number, arbitrary payload data, and a status level.
+  </Card>
+  <Card title="Error Tracking" icon="triangle-exclamation">
+    Drop a single call into your Laravel exception handler and every unhandled `Throwable` is automatically captured as an `ERROR` commit and sent to A-Ray — no extra configuration required.
+  </Card>
+  <Card title="API Health Monitoring" icon="heart-pulse">
+    Automatically record request and response data for every HTTP request passing through your application. A scheduled job batches and ships the results to A-Ray on a configurable cron interval.
+  </Card>
+  <Card title="Slack Notifications" icon="bell">
+    When a push contains `ERROR`-level commits, Laravel A-Ray can fire a notification to a configured log channel (e.g. Slack) so your team is alerted immediately.
+  </Card>
+</CardGroup>
+
+---
+
+## Requirements
+
+Before installing Laravel A-Ray, make sure your environment meets the following minimum requirements:
+
+| Requirement | Version |
+|---|---|
+| PHP | `^7.4` or `^8.0` |
+| Laravel (illuminate/support) | `^8.0`, `^9.0`, or `^10.0` |
+
+<Note>
+  You need an active **A-Ray account** and a **project private key** (formatted as `pk_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX`) to authenticate pushes. Without a valid private key, the package will throw a configuration exception when `A_RAY_ENABLED` is `true`. You can obtain your private key from the A-Ray dashboard after creating a project.
+</Note>

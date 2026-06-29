@@ -1,0 +1,186 @@
+---
+title: 'Configure Laravel A-Ray for Your Project'
+sidebarTitle: 'Configuration'
+description: 'Configure Laravel A-Ray using environment variables or the published config file. Control push behavior, API health monitoring, and error notifications.'
+---
+
+Laravel A-Ray is configured through a combination of **environment variables** in your `.env` file and the **published config file** at `config/laravel-a-ray.php`. Environment variables are the recommended approach for values that change between environments (local, staging, production). The config file is the right place for structural settings — like masked fields and route exclusions — that are consistent across all environments and should be version-controlled.
+
+To publish the config file if you have not already done so:
+
+```bash
+php artisan vendor:publish --provider="Subvitamine\LaravelARay\LaravelARayServiceProvider" --tag=config
+```
+
+The sections below describe every available option.
+
+---
+
+## General Settings
+
+These options control whether the package is active and how it authenticates with the A-Ray platform.
+
+<ParamField query="A_RAY_ENABLED" type="boolean" default="true">
+  Enables or disables the package globally. Set to `false` to turn off all A-Ray integration — no pushes will be sent and no request data will be recorded. Useful for disabling the package in specific environments without removing it from your codebase.
+</ParamField>
+
+<ParamField query="A_RAY_PRIVATE_KEY" type="string" default="">
+  Your A-Ray project private key. This key is appended to every outgoing HTTP request to authenticate the push with the correct project on the platform. Keys follow the format `pk_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX` and are available in your A-Ray project dashboard.
+
+  If `A_RAY_ENABLED` is `true` and this value is empty, calling `ARay::checkConfig()` will throw an exception.
+</ParamField>
+
+---
+
+## Error Notifications
+
+These options control whether A-Ray sends a notification when a push contains one or more `ERROR`-level commits.
+
+<ParamField query="A_RAY_NOTIFY_ERRORS_ENABLED" type="boolean" default="false">
+  When set to `true`, Laravel A-Ray will write to the configured log channel any time a push is sent that contains at least one commit with a status of `ERROR`. This lets your team get alerted in near-real-time when errors are detected.
+</ParamField>
+
+<ParamField query="A_RAY_NOTIFY_CHANNEL" type="string" default="slack">
+  The name of the Laravel [log channel](https://laravel.com/docs/logging#available-channel-drivers) to use when sending error notifications. Defaults to `slack`, which maps to a `slack` entry in your `config/logging.php` channels array. You can substitute any valid channel name defined in your logging configuration (e.g. `teams`, `discord`, a custom channel driver).
+</ParamField>
+
+<ParamField query="A_RAY_NOTIFY_ERRORS_LEVEL" type="string" default="error">
+  The log severity level used when writing the notification message. Defaults to `error`. In most setups this does not need to be changed, but it can be adjusted if your log channel or alerting pipeline requires a different severity level.
+</ParamField>
+
+---
+
+## API Health Monitoring
+
+These options control the automatic HTTP request/response recording feature. When enabled, Laravel A-Ray's middleware captures every request passing through your application and stores it temporarily in the database. A scheduled Artisan command (`aray:requests-push-purge`) then batches and ships the collected records to A-Ray on the configured interval.
+
+<ParamField query="A_RAY_API_HEALTH_ENABLED" type="boolean" default="false">
+  Enables or disables API health monitoring. When `true`, two middleware classes (`BeforeArayMiddleware` and `AfterArayMiddleware`) are pushed onto the HTTP kernel to intercept every request and response. A scheduled job is also registered automatically — no changes to `App\Console\Kernel` are needed.
+
+  Requires that you have already run `php artisan migrate` so the request buffer table exists.
+</ParamField>
+
+<ParamField query="A_RAY_API_HEALTH_CRON" type="string" default="*/5 * * * *">
+  A cron expression that controls how often the `aray:requests-push-purge` command runs to flush buffered request records to A-Ray. Defaults to every 5 minutes. You can tighten or relax this interval to suit your traffic volume and monitoring requirements.
+
+  Standard cron syntax applies — for example `*/1 * * * *` for every minute or `0 * * * *` for once per hour.
+</ParamField>
+
+---
+
+## Config File Reference
+
+Below is the full content of `config/laravel-a-ray.php` with all options shown in context:
+
+```php
+<?php
+
+return [
+
+    /*
+    |--------------------------------------------------------------------------
+    | Global Enable / Disable
+    |--------------------------------------------------------------------------
+    | Set to false to disable all A-Ray integration without uninstalling
+    | the package.
+    */
+    'enabled' => env('A_RAY_ENABLED', true),
+
+    /*
+    |--------------------------------------------------------------------------
+    | API Health Monitoring
+    |--------------------------------------------------------------------------
+    */
+    'api_health' => [
+        'enabled' => env('A_RAY_API_HEALTH_ENABLED', false),
+        'cron'    => env('A_RAY_API_HEALTH_CRON', '*/5 * * * *'),
+
+        /*
+         | Routes listed here will not have their request body or response
+         | body captured. Use named routes (e.g. 'api.auth.me').
+         */
+        'routes_without_request_response' => [
+            'api.auth.me',
+        ],
+
+        /*
+         | Fields listed here will be replaced with '********' in the
+         | captured request payload before being sent to A-Ray.
+         */
+        'except_fields' => [
+            'password',
+            'password_confirmation',
+            'current_password',
+            'new_password',
+            'new_password_confirmation',
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Project Private Key
+    |--------------------------------------------------------------------------
+    | Obtain this from your A-Ray project dashboard.
+    */
+    'private_key' => env('A_RAY_PRIVATE_KEY', ''),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Error Notifications
+    |--------------------------------------------------------------------------
+    */
+    'notify_errors' => [
+        'enabled' => env('A_RAY_NOTIFY_ERRORS_ENABLED', false),
+        'level'   => env('A_RAY_NOTIFY_ERRORS_LEVEL', 'error'),
+        'channel' => env('A_RAY_NOTIFY_CHANNEL', 'slack'),
+    ],
+
+];
+```
+
+---
+
+## Sensitive Field Masking
+
+The `except_fields` array inside `api_health` lists request body fields that will be **replaced with `********`** before any data is sent to A-Ray. This ensures that passwords and other sensitive values are never transmitted to the platform.
+
+The default set of masked fields is:
+
+| Field |
+|---|
+| `password` |
+| `password_confirmation` |
+| `current_password` |
+| `new_password` |
+| `new_password_confirmation` |
+
+You can extend this list in `config/laravel-a-ray.php` to include any other fields your application handles (e.g. `card_number`, `api_token`, `secret`):
+
+```php
+'except_fields' => [
+    'password',
+    'password_confirmation',
+    'current_password',
+    'new_password',
+    'new_password_confirmation',
+    'card_number',   // add your own sensitive fields here
+    'api_token',
+],
+```
+
+---
+
+## Excluding Routes from Request/Response Capture
+
+The `routes_without_request_response` array lets you specify **named routes** whose request and response bodies should not be captured by the API health middleware. This is useful for endpoints that handle large payloads, binary data, or information that is not meaningful to monitor.
+
+```php
+'routes_without_request_response' => [
+    'api.auth.me',      // default exclusion
+    'api.files.upload', // example: file upload endpoint
+],
+```
+
+<Note>
+  Route names must match exactly the named routes defined in your `routes/api.php` or `routes/web.php` file (i.e. the name passed to `->name('...')`). Routes without a name are not affected by this list.
+</Note>

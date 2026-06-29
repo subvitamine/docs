@@ -1,0 +1,48 @@
+---
+title: 'Send Multiple Pushes in a Single A-Ray Request'
+sidebarTitle: 'Multiple Pushes'
+description: 'Use ARay::pushMultiple() to batch multiple pushes into a single API call, reducing network overhead when sending bulk monitoring data to A-Ray.'
+---
+
+When your application needs to report on a collection of discrete operations — such as the results of processing a queue of jobs, completing a bulk import, or summarizing a batch of background tasks — making one HTTP request to A-Ray per operation is inefficient. `ARay::pushMultiple()` accepts an array of `ARayPush` instances and delivers them all in a single API call, dramatically reducing network overhead and keeping your application's throughput high.
+
+## Sending a batch of pushes
+
+Build an array of `ARayPush` objects (using the same `initPush` / `addCommit` workflow as individual pushes) and pass the array to `ARay::pushMultiple()`:
+
+```php
+use Subvitamine\LaravelARay\ARay;
+use Subvitamine\LaravelARay\CommitStatus;
+
+$pushes = [];
+
+foreach ($orders as $order) {
+    $push = ARay::initPush('Process order #' . $order->id);
+    $push->addCommit('Order validated', ['order_id' => $order->id], CommitStatus::SUCCESS);
+    $push->addCommit('Invoice generated', ['invoice' => $order->invoice_number], CommitStatus::INFO);
+    $pushes[] = $push;
+}
+
+ARay::pushMultiple($pushes);
+```
+
+Each push in the array is serialized independently and sent as part of a single POST request to the A-Ray bulk endpoint. The platform processes and stores each push separately, so they appear as individual entries in your A-Ray dashboard.
+
+<Note>
+  All elements passed to `pushMultiple()` must be `ARayPush` instances. Passing any other type will cause a serialization error at delivery time.
+</Note>
+
+## When to use pushMultiple()
+
+Prefer `pushMultiple()` over repeated calls to `ARay::push()` whenever you are:
+
+- **Processing queued or scheduled jobs** — collect one push per job, then batch-send at the end of the queue worker cycle.
+- **Running batch imports or exports** — create a push per record or chunk, then flush once the loop completes.
+- **Aggregating results from parallel operations** — gather pushes from concurrent tasks and send them together after all tasks resolve.
+- **Implementing custom bulk reporting** — replicate the pattern used internally by the API health feature.
+
+Using `pushMultiple()` in these scenarios avoids saturating the A-Ray API with sequential single-push calls and keeps your application's response times consistent.
+
+<Tip>
+  The API health middleware uses `pushMultiple()` internally. When the `aray:requests-push-purge` Artisan command runs on its cron schedule, it reads all captured `ArayRequest` database records, converts each one into an `ARayPush`, and dispatches the entire batch via a single `pushMultiple()` call before truncating the table. You can use the same pattern in your own code for any domain that benefits from deferred, batched delivery.
+</Tip>

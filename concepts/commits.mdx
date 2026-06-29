@@ -1,0 +1,83 @@
+---
+title: 'Commits: Timestamped Steps Inside a Push'
+sidebarTitle: 'Commits'
+description: 'Commits are timestamped log entries inside a push. Each commit has a label, data payload, and a status that indicates success, warning, or error.'
+---
+
+A **commit** is a single, timestamped step recorded inside a [push](/concepts/pushes). Where a push represents an entire operation (e.g. "Order processing"), commits represent the individual milestones within that operation (e.g. "Validating order", "Payment processed", "Stock updated"). Together, they give you a granular, time-ordered trace you can inspect on the A-Ray dashboard — making it easy to pinpoint exactly where a flow succeeded, slowed down, or failed.
+
+## Commit Fields
+
+Each commit carries the following information:
+
+| Field | Type | Description |
+|---|---|---|
+| `label` | `string` | A short, descriptive name for this step. Shown as the commit title in A-Ray. |
+| `content` | `array` | Arbitrary data payload you want to inspect for this step. |
+| `status` | `CommitStatus` | One of `SUCCESS`, `INFO`, `WARNING`, or `ERROR`. See [Commit Statuses](/concepts/commit-statuses). |
+| `isAt` | `datetime` | The moment the commit was recorded. Defaults to `Carbon::now()`. |
+
+### Automatic caller capture
+
+You do not need to manually record where in your code a commit originates. Laravel A-Ray automatically captures the **class name** and **line number** of the calling code and embeds them in the commit's `content` under the `currentClass` key:
+
+```json
+"content": {
+  "currentClass": {
+    "class": "App\\Services\\OrderService",
+    "line": 87
+  },
+  "content": { "order_id": 123 }
+}
+```
+
+This means you can always trace a commit back to its exact source location without adding any extra instrumentation.
+
+## Adding Commits to a Push
+
+Use `addCommit()` on an `ARayPush` instance. It accepts a label, a data array, and a `CommitStatus` value:
+
+```php
+use Subvitamine\LaravelARay\ARay;
+use Subvitamine\LaravelARay\CommitStatus;
+
+$push = ARay::initPush('Order processing');
+
+$push->addCommit('Validating order',   ['order_id' => 123],      CommitStatus::INFO);
+$push->addCommit('Payment processed',  ['amount'   => 49.99],    CommitStatus::SUCCESS);
+$push->addCommit('Stock check failed', ['sku'      => 'ABC-001'], CommitStatus::WARNING);
+
+ARay::push($push);
+```
+
+### Custom timestamps
+
+By default each commit's `isAt` is set to the current time at the moment `addCommit()` is called. You can pass an explicit `Carbon` instance as a fourth argument when you need to backfill a timestamp or align it with an external event:
+
+```php
+use Illuminate\Support\Carbon;
+use Subvitamine\LaravelARay\CommitStatus;
+
+$push->addCommit(
+    'External API response',
+    ['status_code' => 200],
+    CommitStatus::SUCCESS,
+    Carbon::parse('2024-06-01 12:00:00.500')
+);
+```
+
+## Chaining Commits
+
+`addCommit()` returns the `ARayPush` instance, so you can chain multiple calls fluently:
+
+```php
+ARay::initPush('Password reset')
+    ->addCommit('Token generated', ['token_length' => 64],   CommitStatus::INFO)
+    ->addCommit('Email dispatched', ['recipient' => $email],  CommitStatus::SUCCESS);
+```
+
+Assign the result of `ARay::initPush()` to a variable first if you need to reference the push later (e.g. to call `ARay::push($push)`).
+
+<Note>
+  Each push accepts **at most 20 commits**. If you call `addCommit()` on a push that already has 20 commits, an `Exception` is thrown with the message _"You can't add more than 20 commits"_. Break large flows across multiple pushes if you need more granularity.
+</Note>

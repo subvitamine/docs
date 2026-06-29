@@ -1,0 +1,73 @@
+---
+title: 'Install Laravel A-Ray in Your Laravel Project'
+sidebarTitle: 'Installation'
+description: 'Install the subvitamine/laravel-a-ray package via Composer and run the database migration to start monitoring your Laravel application.'
+---
+
+Getting Laravel A-Ray running in your project takes only a few minutes. The package is distributed via [Packagist](https://packagist.org/packages/subvitamine/laravel-a-ray) and follows the standard Laravel package installation flow — Composer, a published config file, a database migration, and a handful of environment variables.
+
+<Note>
+  Laravel A-Ray is auto-discovered via Laravel's [package auto-discovery](https://laravel.com/docs/packages#package-discovery) mechanism. You do **not** need to manually register `LaravelARayServiceProvider` in `config/app.php` — Laravel handles this automatically for all supported versions.
+</Note>
+
+---
+
+<Steps>
+  <Step title="Install via Composer">
+    Require the package using Composer. This will download the package and add it to your `composer.json` dependencies.
+
+    ```bash
+    composer require subvitamine/laravel-a-ray
+    ```
+  </Step>
+
+  <Step title="Publish the configuration file">
+    Publish the package's default configuration file to your application's `config/` directory. This creates `config/laravel-a-ray.php`, which you can edit to customise every aspect of the integration.
+
+    ```bash
+    php artisan vendor:publish --provider="Subvitamine\LaravelARay\LaravelARayServiceProvider" --tag=config
+    ```
+
+    After running this command you will find a new file at `config/laravel-a-ray.php` containing all available options with their defaults.
+  </Step>
+
+  <Step title="Run the database migration">
+    Laravel A-Ray uses a database table to buffer incoming HTTP request and response data before it is shipped to the A-Ray platform (used by the API Health Monitoring feature). Run the migration to create that table.
+
+    ```bash
+    php artisan migrate
+    ```
+
+    Even if you do not plan to use API health monitoring right away, running the migration is recommended so the table is in place if you enable the feature later.
+  </Step>
+
+  <Step title="Add environment variables">
+    Add the following variables to your `.env` file. At a minimum you need `A_RAY_PRIVATE_KEY` set to your project's private key. The other variables are optional and default to the values shown below.
+
+    ```ini
+    A_RAY_ENABLED=true
+    A_RAY_PRIVATE_KEY=pk_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    A_RAY_NOTIFY_ERRORS_ENABLED=false
+    A_RAY_NOTIFY_CHANNEL=slack
+    ```
+
+    | Variable | Default | Description |
+    |---|---|---|
+    | `A_RAY_ENABLED` | `true` | Master switch — set to `false` to disable all A-Ray integration |
+    | `A_RAY_PRIVATE_KEY` | _(empty)_ | Your A-Ray project private key |
+    | `A_RAY_NOTIFY_ERRORS_ENABLED` | `false` | Enable Slack (or other channel) notifications for `ERROR`-level commits |
+    | `A_RAY_NOTIFY_CHANNEL` | `slack` | The Laravel log channel used to send error notifications |
+  </Step>
+</Steps>
+
+---
+
+Once the steps above are complete, you can verify the setup is correct by calling `ARay::checkConfig()` anywhere in your application (e.g. a quick Tinker session):
+
+```php
+use Subvitamine\LaravelARay\ARay;
+
+ARay::checkConfig(); // returns true, or throws if misconfigured
+```
+
+If the method returns `true` without throwing an exception, Laravel A-Ray is installed and configured correctly.

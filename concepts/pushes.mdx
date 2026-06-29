@@ -1,0 +1,106 @@
+---
+title: 'Understanding Pushes in Laravel A-Ray'
+sidebarTitle: 'Pushes'
+description: 'A push is the core data unit in Laravel A-Ray — a labelled container that groups commits and is sent to the A-Ray platform for monitoring.'
+---
+
+A **push** is the fundamental unit of data in Laravel A-Ray. Every time you want to record a trace, a request lifecycle, or a custom debug flow, you create a push, attach one or more commits to it, and send it to the A-Ray platform. Think of a push as an envelope: it carries high-level context (a label, a type, optional metadata, and timing information) while the individual commits inside it describe each step of the operation in detail.
+
+## Anatomy of a Push
+
+A push contains the following fields:
+
+| Field | Type | Description |
+|---|---|---|
+| `label` | `string` | A human-readable name for the push, displayed in the A-Ray dashboard. |
+| `type` | `string` | Either `DEBUG` or `REQUEST`. Controls how A-Ray categorises the push. |
+| `meta` | `array` | Arbitrary key/value metadata you want to attach to the push. |
+| `startAt` | `datetime` | When the push was initiated. Defaults to `Carbon::now()` at construction time. |
+| `endAt` | `datetime` | When `ARay::push()` is called. Set automatically unless you pass a custom value. |
+| `commits` | `array` | The list of timestamped steps recorded inside this push. |
+
+## Creating and Sending a Push
+
+Use the `ARay` facade to initialise a push, add commits, and then dispatch it:
+
+```php
+use Subvitamine\LaravelARay\ARay;
+
+$push = ARay::initPush('User registration flow');
+
+// add commits that describe individual steps...
+
+ARay::push($push);
+```
+
+`ARay::initPush()` accepts an optional second argument — a `Carbon` instance — if you need to set the start time manually rather than letting it default to the moment of construction.
+
+## Push Types
+
+Laravel A-Ray supports two push types:
+
+- **`DEBUG`** — The default type. Use this for any custom trace you instrument manually in your application code, such as recording a business-logic flow, debugging a queue job, or profiling a complex calculation.
+- **`REQUEST`** — Reserved for the built-in API health middleware. When the middleware wraps an HTTP request, it creates a push of type `REQUEST` so that A-Ray can distinguish endpoint traces from your own debug pushes in the dashboard.
+
+You can change the type of a push before sending it:
+
+```php
+use Subvitamine\LaravelARay\ARay;
+
+$push = ARay::initPush('Health check');
+$push->setType('REQUEST');
+
+ARay::push($push);
+```
+
+Passing any value other than `'DEBUG'` or `'REQUEST'` will throw an `Exception`.
+
+## Attaching Metadata
+
+Use `setMeta()` to attach arbitrary context to a push — for example, the authenticated user's ID or the current environment:
+
+```php
+$push->setMeta([
+    'user_id' => auth()->id(),
+    'env'     => app()->environment(),
+]);
+```
+
+Metadata is forwarded as-is to A-Ray and is visible alongside the push in the dashboard.
+
+<Note>
+  A push can contain **at most 20 commits**. Attempting to add a 21st commit will throw an `Exception`. Plan your traces accordingly, and consider splitting large flows into multiple pushes if needed.
+</Note>
+
+## Push Data Structure
+
+When `ARay::push()` is called, the push is serialised and sent to the A-Ray platform. The resulting JSON payload looks like this:
+
+```json
+{
+  "label": "User registration flow",
+  "type": "DEBUG",
+  "meta": {
+    "user_id": 42,
+    "env": "production"
+  },
+  "startAt": "2024-06-01 12:00:00.000000",
+  "endAt":   "2024-06-01 12:00:00.123456",
+  "commits": [
+    {
+      "label": "Validating input",
+      "content": {
+        "currentClass": {
+          "class": "App\\Http\\Controllers\\AuthController",
+          "line": 34
+        },
+        "content": { "email": "user@example.com" }
+      },
+      "isAt": "2024-06-01 12:00:00.001000",
+      "status": "INFO"
+    }
+  ]
+}
+```
+
+The `startAt` and `endAt` timestamps let A-Ray calculate the total duration of the push, while each commit's `isAt` timestamp pinpoints exactly when that step occurred within the flow.

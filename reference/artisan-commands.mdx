@@ -1,0 +1,88 @@
+---
+title: 'Artisan Commands Provided by Laravel A-Ray'
+sidebarTitle: 'Artisan Commands'
+description: 'Laravel A-Ray registers the aray:requests-push-purge Artisan command to batch-send captured API health data to A-Ray and clear the local database.'
+---
+
+Laravel A-Ray registers **one Artisan command** for managing captured API health data. When the API health middleware is active, incoming HTTP requests and their responses are stored in the `aray_requests` table. This command reads those records, ships them to A-Ray, and clears the table — keeping your database lightweight while keeping A-Ray up to date.
+
+---
+
+## aray:requests-push-purge
+
+**Signature**
+
+```bash
+php artisan aray:requests-push-purge
+```
+
+**Description**
+
+Reads all stored `ArayRequest` records, converts each one into a `REQUEST`-type `ARayPush`, sends them to A-Ray in a single batched call via `ARay::pushMultiple()`, and then truncates the `aray_requests` table.
+
+### Step-by-step behaviour
+
+1. **Fetch** — All rows from `aray_requests` are loaded into memory.
+2. **Truncate** — The `aray_requests` table is immediately cleared to prevent duplicate sends on retries.
+3. **Convert** — Each record is turned into an `ARayPush` with:
+   - Type set to `'REQUEST'`
+   - Meta containing `route`, `method`, and `url`
+   - Start/end timestamps taken from the stored request and response data
+   - Two `INFO`-status commits: one for the request payload, one for the response payload
+4. **Send** — All pushes are dispatched to A-Ray in one HTTP request via `ARay::pushMultiple()`.
+
+### Running the command
+
+```bash
+php artisan aray:requests-push-purge
+```
+
+You can run it manually at any time, or let the package schedule it for you automatically (see below).
+
+---
+
+## Automatic Scheduling
+
+When `A_RAY_API_HEALTH_ENABLED=true`, the package **automatically registers** this command with Laravel's task scheduler. You do not need to add anything to your `app/Console/Kernel.php`.
+
+The default schedule runs the command every **5 minutes**:
+
+```
+*/5 * * * *
+```
+
+### Customising the schedule
+
+Control the frequency with the `A_RAY_API_HEALTH_CRON` environment variable or by editing the `api_health.cron` key in `config/laravel-a-ray.php`.
+
+**Examples:**
+
+```env
+# Run every 10 minutes
+A_RAY_API_HEALTH_CRON=*/10 * * * *
+
+# Run every minute (for high-traffic APIs)
+A_RAY_API_HEALTH_CRON=* * * * *
+
+# Run once an hour
+A_RAY_API_HEALTH_CRON=0 * * * *
+```
+
+Or directly in the config file:
+
+```php
+// config/laravel-a-ray.php
+'api_health' => [
+    'enabled' => env('A_RAY_API_HEALTH_ENABLED', false),
+    'cron'    => env('A_RAY_API_HEALTH_CRON', '*/5 * * * *'),
+    // ...
+],
+```
+
+<Note>
+  You do **not** need to add `aray:requests-push-purge` to your `app/Console/Kernel.php`. When `A_RAY_API_HEALTH_ENABLED` is `true`, the package's service provider registers the schedule automatically.
+</Note>
+
+<Warning>
+  This command **truncates** the `aray_requests` table immediately after loading the records, before sending them to A-Ray. If your A-Ray endpoint is unreachable at the time the command runs, the records will be lost. Ensure your `A_RAY_PRIVATE_KEY` is correct and your network can reach the A-Ray API before enabling this in production.
+</Warning>

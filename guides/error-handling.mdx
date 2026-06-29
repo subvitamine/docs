@@ -1,0 +1,81 @@
+---
+title: 'Automatically Track Laravel Exceptions in A-Ray'
+sidebarTitle: 'Error Handling'
+description: 'Integrate Laravel A-Ray with your application exception handler to automatically send unhandled exceptions to A-Ray as ERROR-status pushes.'
+---
+
+A-Ray can automatically capture and forward all reportable exceptions from Laravel's exception handler to the A-Ray platform. Each exception becomes an `ERROR`-status push labelled **"Error handler"**, giving you a complete, timestamped record of every unhandled error your application throws — without any manual instrumentation in your business logic.
+
+<Steps>
+  <Step title="Open app/Exceptions/Handler.php">
+    Laravel's central exception handler lives at `app/Exceptions/Handler.php`. This is where you register callbacks for reportable exceptions via the `register()` method.
+  </Step>
+
+  <Step title="Add the ARay use statement">
+    Import the `ARay` class at the top of the file:
+
+    ```php
+    use Subvitamine\LaravelARay\ARay;
+    ```
+  </Step>
+
+  <Step title="Register the reportable callback">
+    Inside the `register()` method, call `$this->reportable()` and pass a closure that delegates to `ARay::handleErrors()`:
+
+    ```php
+    use Subvitamine\LaravelARay\ARay;
+
+    // ...
+    public function register(): void
+    {
+        $this->reportable(function (Throwable $e) {
+            ARay::handleErrors($e);
+        });
+    }
+    ```
+
+    That's all that is required. Laravel will invoke this callback whenever an exception reaches the handler and is deemed reportable.
+  </Step>
+</Steps>
+
+## What happens when an error is captured
+
+When `ARay::handleErrors()` is called with a `Throwable`, it performs the following steps automatically:
+
+1. Initializes a new push labelled **"Error handler"** with the current timestamp as `startAt`.
+2. Adds a single commit whose label is the exception's message, with a status of `CommitStatus::ERROR`.
+3. Calls `ARay::push()` to deliver the push to the A-Ray platform immediately.
+
+The full exception object is serialized and included as the commit's content payload, so you can inspect the stack trace and exception properties directly inside the A-Ray dashboard.
+
+<Note>
+  This integration only fires for **reportable** exceptions — those that Laravel's exception handler does not suppress. If you call `$this->stop()` inside another `reportable()` callback before this one runs, the exception will not be forwarded to A-Ray.
+</Note>
+
+## Sending errors manually
+
+You can call `ARay::handleErrors()` anywhere in your codebase, not just inside the global exception handler. This is useful when you want to track non-fatal exceptions that you are catching and recovering from:
+
+```php
+use Subvitamine\LaravelARay\ARay;
+
+try {
+    $result = $externalService->fetchData();
+} catch (Throwable $e) {
+    ARay::handleErrors($e);
+
+    // Continue with a fallback value
+    $result = collect();
+}
+```
+
+This gives you visibility into recoverable errors that would otherwise be silently swallowed by a `try/catch` block.
+
+<Tip>
+  Enable `A_RAY_NOTIFY_ERRORS_ENABLED=true` in your `.env` file to also receive Slack alerts whenever an error push is sent to A-Ray. Configure the target channel with `A_RAY_NOTIFY_CHANNEL` (defaults to `slack`).
+
+  ```env
+  A_RAY_NOTIFY_ERRORS_ENABLED=true
+  A_RAY_NOTIFY_CHANNEL=slack
+  ```
+</Tip>

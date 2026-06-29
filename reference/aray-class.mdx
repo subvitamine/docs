@@ -1,0 +1,175 @@
+---
+title: 'ARay Class Reference for Laravel A-Ray'
+sidebarTitle: 'ARay'
+description: 'Full reference for the ARay static class — the main entry point for initializing pushes, sending data to A-Ray, and handling exceptions in Laravel.'
+---
+
+`ARay` is the main facade class you interact with in Laravel A-Ray. It provides all the tools you need to create monitoring events, send them to the A-Ray platform, and handle exceptions. Every method on `ARay` is **static**, so you call them directly on the class without instantiating it.
+
+---
+
+## Methods
+
+### checkConfig()
+
+Validates that the package configuration is complete and consistent. Throws an `Exception` if `A_RAY_PRIVATE_KEY` is missing when the package is enabled, or if error notifications are enabled without a log channel being set. Returns `true` when the config is valid.
+
+**Returns:** `bool`
+
+<CodeGroup>
+```php Validate config
+use Subvitamine\LaravelARay\ARay;
+
+try {
+    ARay::checkConfig();
+} catch (\Exception $e) {
+    // Handle misconfiguration, e.g. log or display the error
+    echo $e->getMessage();
+}
+```
+</CodeGroup>
+
+---
+
+### initPush()
+
+Creates and returns a new [`ARayPush`](/reference/aray-push-class) instance. This is the recommended way to construct a push — prefer this over calling `new ARayPush()` directly.
+
+**Parameters:**
+
+<ParamField path="label" type="string" required>
+  A human-readable name for the push, shown as the event title in the A-Ray dashboard.
+</ParamField>
+
+<ParamField path="startAt" type="Carbon" default="Carbon::now()">
+  The timestamp marking the start of the event. Defaults to the current time when omitted.
+</ParamField>
+
+**Returns:** `ARayPush`
+
+<CodeGroup>
+```php Basic usage
+use Subvitamine\LaravelARay\ARay;
+
+$push = ARay::initPush('Order processing');
+```
+
+```php With a custom start time
+use Subvitamine\LaravelARay\ARay;
+use Illuminate\Support\Carbon;
+
+$startAt = Carbon::now()->subSeconds(2);
+$push = ARay::initPush('Order processing', $startAt);
+```
+</CodeGroup>
+
+---
+
+### push()
+
+Sends a single [`ARayPush`](/reference/aray-push-class) instance to the A-Ray platform. If `$endAt` is not provided, it is automatically set to the current time. If a push contains any `ERROR`-status commits and `A_RAY_NOTIFY_ERRORS_ENABLED` is `true`, a notification is dispatched to the configured log channel. Errors from the HTTP call are caught silently and forwarded to the notify channel if one is configured.
+
+**Parameters:**
+
+<ParamField path="push" type="ARayPush" required>
+  The push object to send. Build it with `ARay::initPush()` and populate it with `addCommit()` calls.
+</ParamField>
+
+<ParamField path="endAt" type="Carbon" default="Carbon::now()">
+  The timestamp marking the end of the event. Defaults to the current time.
+</ParamField>
+
+**Returns:** `bool` — always `true`, even if the HTTP request fails (errors are handled silently).
+
+<CodeGroup>
+```php Send a push
+use Subvitamine\LaravelARay\ARay;
+use Subvitamine\LaravelARay\CommitStatus;
+
+$push = ARay::initPush('User login')
+    ->addCommit('Credentials checked', ['user_id' => 42], CommitStatus::SUCCESS);
+
+ARay::push($push);
+```
+
+```php Send with explicit end time
+use Subvitamine\LaravelARay\ARay;
+use Subvitamine\LaravelARay\CommitStatus;
+use Illuminate\Support\Carbon;
+
+$push = ARay::initPush('Batch job');
+// ... do work ...
+ARay::push($push, Carbon::now());
+```
+</CodeGroup>
+
+---
+
+### pushMultiple()
+
+Sends an array of [`ARayPush`](/reference/aray-push-class) instances to the A-Ray platform in a **single HTTP request**. This is the most efficient way to ship a batch of events at once — used internally by the `aray:requests-push-purge` Artisan command. Errors from the HTTP call are caught silently.
+
+**Parameters:**
+
+<ParamField path="pushes" type="ARayPush[]" required>
+  An array of `ARayPush` objects. Each push must already have its `endAt` set (e.g. via `setEndAt()`) before being included in the array, since `pushMultiple()` does not automatically set it the way `push()` does.
+</ParamField>
+
+**Returns:** `void`
+
+<CodeGroup>
+```php Send multiple pushes
+use Subvitamine\LaravelARay\ARay;
+use Subvitamine\LaravelARay\CommitStatus;
+
+$push1 = ARay::initPush('Step one')
+    ->addCommit('Validated', ['ok' => true], CommitStatus::SUCCESS);
+
+$push2 = ARay::initPush('Step two')
+    ->addCommit('Processed', ['records' => 50], CommitStatus::INFO);
+
+// Set endAt on each push before batching
+$push1->setEndAt(\Illuminate\Support\Carbon::now());
+$push2->setEndAt(\Illuminate\Support\Carbon::now());
+
+ARay::pushMultiple([$push1, $push2]);
+```
+</CodeGroup>
+
+---
+
+### handleErrors()
+
+Convenience method for reporting caught exceptions to A-Ray. It internally calls `initPush()` with the label `"Error handler"`, adds a single `ERROR`-status commit whose content is the serialised `Throwable`, and immediately sends the push via `push()`.
+
+**Parameters:**
+
+<ParamField path="error" type="Throwable" required>
+  Any `Throwable` — an `Exception`, `Error`, or subclass thereof.
+</ParamField>
+
+**Returns:** `bool` — always `true`.
+
+<CodeGroup>
+```php Report an exception
+use Subvitamine\LaravelARay\ARay;
+
+try {
+    // some risky operation
+    riskyOperation();
+} catch (\Throwable $e) {
+    ARay::handleErrors($e);
+}
+```
+
+```php Use in a global exception handler
+// app/Exceptions/Handler.php
+use Subvitamine\LaravelARay\ARay;
+
+public function report(\Throwable $exception): void
+{
+    ARay::handleErrors($exception);
+    parent::report($exception);
+}
+```
+</CodeGroup>

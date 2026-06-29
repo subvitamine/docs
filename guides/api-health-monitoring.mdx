@@ -1,0 +1,121 @@
+---
+title: 'Monitor API Health with Laravel A-Ray Middleware'
+sidebarTitle: 'API Health'
+description: 'Enable API health monitoring to automatically capture HTTP request and response data in your Laravel app and batch-send it to A-Ray on a schedule.'
+---
+
+Laravel A-Ray's API health feature gives you continuous, low-overhead visibility into every HTTP request your application handles. Two middleware classes — `BeforeArayMiddleware` and `AfterArayMiddleware` — work in tandem to capture request and response data, persist it to a local database table, and then the `aray:requests-push-purge` Artisan command batches everything to the A-Ray platform on a configurable cron schedule. The result is a time-series view of your API's traffic, payloads, and status codes without any per-route instrumentation.
+
+<Steps>
+  <Step title="Enable the feature in your .env">
+    API health monitoring is disabled by default. Set the following environment variable to turn it on:
+
+    ```env
+    A_RAY_API_HEALTH_ENABLED=true
+    ```
+  </Step>
+
+  <Step title="Run the database migration">
+    The middleware stores captured request/response pairs in an `aray_requests` table. If you have not already published and run the package migrations, do so now:
+
+    ```bash
+    php artisan migrate
+    ```
+  </Step>
+
+  <Step title="Customize the cron schedule (optional)">
+    By default, captured data is flushed to the A-Ray platform every **5 minutes**. Override the schedule by setting the `A_RAY_API_HEALTH_CRON` variable in your `.env`:
+
+    ```env
+    A_RAY_API_HEALTH_CRON="*/2 * * * *"
+    ```
+
+    See the [Cron scheduling](#cron-scheduling) section below for more details.
+  </Step>
+</Steps>
+
+## What is captured
+
+For each HTTP request, A-Ray records the following data points:
+
+| Field | Description |
+|---|---|
+| `method` | HTTP verb (`GET`, `POST`, etc.) |
+| `url` | Full request URL |
+| `route` | Named Laravel route (e.g. `api.users.show`) |
+| `headers.origin` | Value of the `Origin` request header, if present |
+| `request` | Request body (JSON requests only — see below) |
+| `response` | Response body (JSON responses only) |
+| `status` | HTTP response status code |
+| `startAt` | Timestamp recorded before the request is handled |
+| `endAt` | Timestamp recorded after the response is returned |
+
+<Warning>
+  **Non-JSON bodies are not captured.** If a request or response has a `Content-Type` other than `application/json`, A-Ray records the content type string (e.g. `Not JSON -> text/html`) instead of the body. Only the `Content-Type` header is stored in that case.
+</Warning>
+
+## Masking sensitive fields
+
+A-Ray automatically masks values for a set of sensitive field names before persisting request bodies. Any field whose key appears in the `except_fields` configuration array will have its value replaced with `********`.
+
+The default set of masked fields is:
+
+- `password`
+- `password_confirmation`
+- `current_password`
+- `new_password`
+- `new_password_confirmation`
+
+To mask additional fields, publish the package config (if you have not already) and extend the `except_fields` array in `config/laravel-a-ray.php`:
+
+```php
+'api_health' => [
+    'enabled' => env('A_RAY_API_HEALTH_ENABLED', false),
+
+    'except_fields' => [
+        'password',
+        'password_confirmation',
+        'credit_card_number',
+        'ssn',
+    ],
+],
+```
+
+Field masking applies only to the request body. Response bodies are stored as-is.
+
+## Excluding routes from body capture
+
+Some routes return or accept data that you do not want to record at all — for example, an authenticated profile endpoint (`/api/auth/me`) that returns full user details. Add the named route to the `routes_without_request_response` array to skip body capture entirely for those routes. The route's timing metadata (method, URL, status code, timestamps) is still recorded.
+
+```php
+'api_health' => [
+    'routes_without_request_response' => [
+        'api.auth.me',
+        'api.users.export',
+    ],
+],
+```
+
+## Cron scheduling
+
+The `aray:requests-push-purge` command reads all rows from the `aray_requests` table, converts them into `REQUEST`-type pushes, sends them to A-Ray via `pushMultiple()`, and then truncates the table. The package registers this command with Laravel's scheduler automatically when `api_health.enabled` is `true`.
+
+The default schedule is **every 5 minutes** (`*/5 * * * *`). Change it via the `A_RAY_API_HEALTH_CRON` environment variable:
+
+```env
+# Send every 2 minutes
+A_RAY_API_HEALTH_CRON="*/2 * * * *"
+
+# Send once an hour
+A_RAY_API_HEALTH_CRON="0 * * * *"
+```
+
+You can also run the command on demand at any time:
+
+```bash
+php artisan aray:requests-push-purge
+```
+
+<Note>
+  Both `BeforeArayMiddleware` and `AfterArayMiddleware` are registered automatically by the A-Ray service provider. You do **not** need to add them to your `app/Http/Kernel.php` — enabling `A_RAY_API_HEALTH_ENABLED=true` is sufficient.
+</Note>

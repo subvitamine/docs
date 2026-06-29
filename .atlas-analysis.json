@@ -1,0 +1,78 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "Laravel A-Ray",
+  "projectDescription": "A Laravel package that sends structured push notifications and API health data to the A-Ray monitoring platform.",
+  "theme": "luma",
+  "primaryColor": "#0e4e5e",
+  "lightColor": "#84acb4",
+  "darkColor": "#cbd9dd",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "configuration"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/pushes",
+              "concepts/commits",
+              "concepts/commit-statuses"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/sending-pushes",
+              "guides/error-handling",
+              "guides/api-health-monitoring",
+              "guides/multiple-pushes"
+            ]
+          },
+          {
+            "group": "Reference",
+            "pages": [
+              "reference/aray-class",
+              "reference/aray-push-class",
+              "reference/artisan-commands",
+              "reference/environment-variables"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Send structured debug pushes to A-Ray from any Laravel application",
+    "Attach multiple commits with status levels (SUCCESS, INFO, WARNING, ERROR) to each push",
+    "Automatic error handling integration via Laravel's exception handler",
+    "API health monitoring: capture HTTP request/response data via middleware and batch-send on a configurable cron schedule",
+    "Sensitive field masking (passwords, tokens) in captured request payloads",
+    "Slack error notifications via Laravel's logging channels",
+    "Artisan command to batch-send and purge stored API health requests"
+  ],
+  "publicApiSurface": [
+    "ARay::checkConfig()",
+    "ARay::initPush(string $label, Carbon $startAt = null): ARayPush",
+    "ARay::push(ARayPush $push, Carbon $endAt = null): bool",
+    "ARay::pushMultiple(array $pushes): void",
+    "ARay::handleErrors(Throwable $error): bool",
+    "ARayPush::addCommit(string $label, array $content, CommitStatus $status, Carbon $startAt = null): ARayPush",
+    "ARayPush::setType(string $type): void",
+    "ARayPush::setMeta(array $meta): void",
+    "CommitStatus::SUCCESS",
+    "CommitStatus::INFO",
+    "CommitStatus::WARNING",
+    "CommitStatus::ERROR",
+    "BeforeArayMiddleware",
+    "AfterArayMiddleware",
+    "aray:requests-push-purge (Artisan command)"
+  ]
+}

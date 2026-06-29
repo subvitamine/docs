@@ -1,0 +1,111 @@
+---
+title: 'Environment Variables for Laravel A-Ray'
+sidebarTitle: 'Environment Variables'
+description: 'All environment variables accepted by Laravel A-Ray, with their default values, types, and descriptions for configuring pushes, error alerts, and API health.'
+---
+
+All Laravel A-Ray behaviour is controlled through your `.env` file. The package reads these values through the `config/laravel-a-ray.php` config file, so you can also override any setting directly there — but the `.env` approach is recommended so secrets stay out of version control.
+
+## Quick Reference
+
+Add the following block to your `.env` and fill in the values appropriate for your environment:
+
+```env
+A_RAY_ENABLED=true
+A_RAY_PRIVATE_KEY=pk_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+A_RAY_NOTIFY_ERRORS_ENABLED=false
+A_RAY_NOTIFY_ERRORS_LEVEL=error
+A_RAY_NOTIFY_CHANNEL=slack
+A_RAY_API_HEALTH_ENABLED=false
+A_RAY_API_HEALTH_CRON=*/5 * * * *
+```
+
+---
+
+## Variables
+
+<ParamField path="A_RAY_ENABLED" type="boolean" default="true">
+  Master on/off switch for the entire package. When set to `false`, all pushes are silently skipped — no HTTP requests are made to the A-Ray API. Useful for disabling monitoring in local or test environments without removing instrumentation from your code.
+
+  ```env
+  A_RAY_ENABLED=false
+  ```
+</ParamField>
+
+<ParamField path="A_RAY_PRIVATE_KEY" type="string" required>
+  Your project's private API key, obtained from the A-Ray dashboard. The package appends this key to every API endpoint URL to authenticate your pushes. The key format is `pk_` followed by a string of alphanumeric characters.
+
+  ```env
+  A_RAY_PRIVATE_KEY=pk_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  ```
+
+  <Tip>
+    Never commit your `A_RAY_PRIVATE_KEY` to version control. Add the variable to `.env.example` without a value to document it for other developers:
+
+    ```env
+    # .env.example
+    A_RAY_PRIVATE_KEY=
+    ```
+  </Tip>
+</ParamField>
+
+<ParamField path="A_RAY_NOTIFY_ERRORS_ENABLED" type="boolean" default="false">
+  When `true`, the package sends a notification via the configured Laravel log channel whenever a push contains one or more `CommitStatus::ERROR` commits, or when the HTTP call to the A-Ray API itself fails.
+
+  ```env
+  A_RAY_NOTIFY_ERRORS_ENABLED=true
+  ```
+</ParamField>
+
+<ParamField path="A_RAY_NOTIFY_ERRORS_LEVEL" type="string" default="error">
+  The log level used when writing error notifications. Maps directly to Laravel's Log facade levels (`emergency`, `alert`, `critical`, `error`, `warning`, `notice`, `info`, `debug`). Defaults to `error`.
+
+  ```env
+  A_RAY_NOTIFY_ERRORS_LEVEL=error
+  ```
+</ParamField>
+
+<ParamField path="A_RAY_NOTIFY_CHANNEL" type="string" default="slack">
+  The Laravel log channel through which error notifications are dispatched. Must match a channel name defined in your `config/logging.php`. Common choices are `slack`, `stack`, or a custom channel.
+
+  ```env
+  A_RAY_NOTIFY_CHANNEL=slack
+  ```
+
+  Ensure `A_RAY_NOTIFY_ERRORS_ENABLED=true` for this channel to be used. If notifications are enabled but this value is empty, `checkConfig()` will throw an exception.
+</ParamField>
+
+<ParamField path="A_RAY_API_HEALTH_ENABLED" type="boolean" default="false">
+  Activates the API health middleware, which captures incoming HTTP request and response data and stores it in the `aray_requests` table for later forwarding to A-Ray. When enabled, the `aray:requests-push-purge` command is also automatically scheduled.
+
+  ```env
+  A_RAY_API_HEALTH_ENABLED=true
+  ```
+</ParamField>
+
+<ParamField path="A_RAY_API_HEALTH_CRON" type="string" default="*/5 * * * *">
+  A cron expression controlling how frequently the `aray:requests-push-purge` command runs when `A_RAY_API_HEALTH_ENABLED` is `true`. The default runs every 5 minutes. Use standard cron syntax.
+
+  ```env
+  # Every 5 minutes (default)
+  A_RAY_API_HEALTH_CRON=*/5 * * * *
+
+  # Every 10 minutes
+  A_RAY_API_HEALTH_CRON=*/10 * * * *
+
+  # Once an hour
+  A_RAY_API_HEALTH_CRON=0 * * * *
+  ```
+</ParamField>
+
+---
+
+<Note>
+  After changing any environment variable, clear Laravel's configuration cache so the new values take effect:
+
+  ```bash
+  php artisan config:clear
+  ```
+
+  In production environments you may also want to run `php artisan config:cache` afterwards to re-cache the updated configuration.
+</Note>

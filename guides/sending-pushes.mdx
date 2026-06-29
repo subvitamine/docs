@@ -1,0 +1,102 @@
+---
+title: 'Send Debug Pushes to A-Ray from Laravel'
+sidebarTitle: 'Sending Pushes'
+description: 'Learn how to create, populate, and send structured debug pushes to the A-Ray platform from your Laravel application using the ARay facade.'
+---
+
+A **push** is the core unit of data in A-Ray — a labelled, time-bounded container that groups one or more commits together. Each commit represents a discrete step in a workflow, tagged with a status and optional payload. This guide walks you through creating a push, populating it with commits, and sending it to the A-Ray platform.
+
+<Steps>
+  <Step title="Initialize a push with ARay::initPush()">
+    Call `ARay::initPush()` with a human-readable label to create a new `ARayPush` instance. A-Ray records the current timestamp as the push's `startAt` the moment it is initialized.
+
+    ```php
+    use Subvitamine\LaravelARay\ARay;
+
+    $push = ARay::initPush('User registration');
+    ```
+  </Step>
+
+  <Step title="Add commits with $push->addCommit()">
+    Attach individual steps to the push by calling `addCommit()`. Each commit takes a label, an associative array of contextual data, and a `CommitStatus` value — one of `SUCCESS`, `INFO`, `WARNING`, or `ERROR`.
+
+    ```php
+    use Subvitamine\LaravelARay\CommitStatus;
+
+    $push->addCommit('Validating input', ['email' => $email], CommitStatus::INFO);
+    $push->addCommit('Creating user', ['user_id' => $user->id], CommitStatus::SUCCESS);
+    $push->addCommit('Sending welcome email', ['email' => $email], CommitStatus::SUCCESS);
+    ```
+
+    A-Ray automatically records the class and line number where each `addCommit()` call was made, so you can trace commits back to their source without any extra instrumentation.
+
+    <Note>A single push supports a maximum of 20 commits.</Note>
+  </Step>
+
+  <Step title="Send the push with ARay::push()">
+    Pass your populated `ARayPush` instance to `ARay::push()`. A-Ray will stamp the current time as `endAt` and deliver the push to the platform over HTTP.
+
+    ```php
+    ARay::push($push);
+    ```
+
+    `push()` returns `true` on success. Any delivery errors are caught internally and, if `A_RAY_NOTIFY_ERRORS_ENABLED` is `true`, forwarded to your configured notification channel.
+  </Step>
+</Steps>
+
+## Complete example
+
+```php
+use Subvitamine\LaravelARay\ARay;
+use Subvitamine\LaravelARay\CommitStatus;
+
+$push = ARay::initPush('User registration');
+
+$push->addCommit('Validating input', ['email' => $email], CommitStatus::INFO);
+$push->addCommit('Creating user', ['user_id' => $user->id], CommitStatus::SUCCESS);
+$push->addCommit('Sending welcome email', ['email' => $email], CommitStatus::SUCCESS);
+
+ARay::push($push);
+```
+
+## Setting a custom start time
+
+By default, `initPush()` uses `Carbon::now()` as the `startAt` timestamp. If you need to represent a process that began earlier — for example, a queued job that was dispatched before you could initialize the push — pass a `Carbon` instance as the second argument:
+
+```php
+use Illuminate\Support\Carbon;
+
+$startedAt = Carbon::now()->subSeconds(3);
+
+$push = ARay::initPush('Import batch', $startedAt);
+```
+
+You can also provide a custom `endAt` when calling `push()` if you have already recorded the exact finish time:
+
+```php
+$endedAt = Carbon::now();
+
+ARay::push($push, $endedAt);
+```
+
+## Setting push metadata
+
+Use `setMeta()` to attach arbitrary key-value data to the push itself (as opposed to individual commits). Metadata is useful for recording environment-level context such as the current deployment version, tenant ID, or request identifier.
+
+```php
+$push->setMeta([
+    'environment' => app()->environment(),
+    'version'     => config('app.version'),
+    'tenant_id'   => $tenant->id,
+]);
+```
+
+Metadata is sent alongside the commits and is displayed in the A-Ray dashboard at the push level.
+
+<Tip>
+  Verify your configuration is valid before you start sending pushes. Calling `ARay::checkConfig()` will throw a descriptive exception if a required value such as `A_RAY_PRIVATE_KEY` is missing or if the Slack notification channel is misconfigured.
+
+  ```php
+  ARay::checkConfig();
+  ```
+</Tip>
