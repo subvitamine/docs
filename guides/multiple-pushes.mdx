@@ -1,5 +1,5 @@
 ---
-title: 'Send Multiple Pushes in a Single A-Ray Request'
+title: 'Send Multiple A-Ray Pushes Together in a Single API Call'
 sidebarTitle: 'Multiple Pushes'
 description: 'Use ARay::pushMultiple() to batch multiple pushes into a single API call, reducing network overhead when sending bulk monitoring data to A-Ray.'
 ---
@@ -28,6 +28,20 @@ ARay::pushMultiple($pushes);
 
 Each push in the array is serialized independently and sent as part of a single POST request to the A-Ray bulk endpoint. The platform processes and stores each push separately, so they appear as individual entries in your A-Ray dashboard.
 
+<Warning>
+  `ARay::pushMultiple()` does **not** automatically set `endAt` on each push before sending. Unlike `ARay::push()`, which stamps `endAt` at the moment it is called, `pushMultiple()` sends pushes exactly as they are. If you want accurate timing data, call `$push->setEndAt(Carbon::now())` on each push before adding it to the array:
+
+  ```php
+  foreach ($orders as $order) {
+      $push = ARay::initPush('Process order #' . $order->id);
+      $push->addCommit('Order validated', ['order_id' => $order->id], CommitStatus::SUCCESS);
+      $push->addCommit('Invoice generated', ['invoice' => $order->invoice_number], CommitStatus::INFO);
+      $push->setEndAt(Carbon::now()); // required — pushMultiple() will not set this for you
+      $pushes[] = $push;
+  }
+  ```
+</Warning>
+
 <Note>
   All elements passed to `pushMultiple()` must be `ARayPush` instances. Passing any other type will cause a serialization error at delivery time.
 </Note>
@@ -44,5 +58,5 @@ Prefer `pushMultiple()` over repeated calls to `ARay::push()` whenever you are:
 Using `pushMultiple()` in these scenarios avoids saturating the A-Ray API with sequential single-push calls and keeps your application's response times consistent.
 
 <Tip>
-  The API health middleware uses `pushMultiple()` internally. When the `aray:requests-push-purge` Artisan command runs on its cron schedule, it reads all captured `ArayRequest` database records, converts each one into an `ARayPush`, and dispatches the entire batch via a single `pushMultiple()` call before truncating the table. You can use the same pattern in your own code for any domain that benefits from deferred, batched delivery.
+  The API health feature uses `pushMultiple()` under the hood. When the `aray:requests-push-purge` Artisan command runs on its cron schedule, it converts all locally-captured request/response entries into `ARayPush` instances and dispatches the entire batch in a single `pushMultiple()` call. You can use the same pattern in your own code for any domain that benefits from deferred, batched delivery.
 </Tip>

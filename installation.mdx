@@ -1,10 +1,10 @@
 ---
-title: 'Install Laravel A-Ray in Your Laravel Project'
+title: 'How to Install Laravel A-Ray in Your Laravel Project'
 sidebarTitle: 'Installation'
-description: 'Install the subvitamine/laravel-a-ray package via Composer and run the database migration to start monitoring your Laravel application.'
+description: 'Install the subvitamine/laravel-a-ray package via Composer, publish the config file, and configure your environment variables to start sending pushes.'
 ---
 
-Getting Laravel A-Ray running in your project takes only a few minutes. The package is distributed via [Packagist](https://packagist.org/packages/subvitamine/laravel-a-ray) and follows the standard Laravel package installation flow — Composer, a published config file, a database migration, and a handful of environment variables.
+Getting Laravel A-Ray running in your project takes only a few minutes. The package is distributed via [Packagist](https://packagist.org/packages/subvitamine/laravel-a-ray) and follows the standard Laravel package installation flow — Composer, a published config file, and a handful of environment variables. A database migration is only needed if you intend to use the API health monitoring feature.
 
 <Note>
   Laravel A-Ray is auto-discovered via Laravel's [package auto-discovery](https://laravel.com/docs/packages#package-discovery) mechanism. You do **not** need to manually register `LaravelARayServiceProvider` in `config/app.php` — Laravel handles this automatically for all supported versions.
@@ -31,14 +31,16 @@ Getting Laravel A-Ray running in your project takes only a few minutes. The pack
     After running this command you will find a new file at `config/laravel-a-ray.php` containing all available options with their defaults.
   </Step>
 
-  <Step title="Run the database migration">
-    Laravel A-Ray uses a database table to buffer incoming HTTP request and response data before it is shipped to the A-Ray platform (used by the API Health Monitoring feature). Run the migration to create that table.
+  <Step title="Run the database migration (API health monitoring only)">
+    If you plan to use the **API Health Monitoring** feature, run the migration to create the request buffer table used to store HTTP request and response data before it is shipped to A-Ray.
 
     ```bash
     php artisan migrate
     ```
 
-    Even if you do not plan to use API health monitoring right away, running the migration is recommended so the table is in place if you enable the feature later.
+    <Note>
+      This migration is only required for the API health monitoring feature (`A_RAY_API_HEALTH_ENABLED=true`). You can skip this step if you only need to send pushes or handle errors.
+    </Note>
   </Step>
 
   <Step title="Add environment variables">

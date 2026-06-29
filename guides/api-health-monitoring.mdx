@@ -1,10 +1,10 @@
 ---
-title: 'Monitor API Health with Laravel A-Ray Middleware'
+title: 'Monitor API Health Across Your Laravel App with A-Ray'
 sidebarTitle: 'API Health'
 description: 'Enable API health monitoring to automatically capture HTTP request and response data in your Laravel app and batch-send it to A-Ray on a schedule.'
 ---
 
-Laravel A-Ray's API health feature gives you continuous, low-overhead visibility into every HTTP request your application handles. Two middleware classes — `BeforeArayMiddleware` and `AfterArayMiddleware` — work in tandem to capture request and response data, persist it to a local database table, and then the `aray:requests-push-purge` Artisan command batches everything to the A-Ray platform on a configurable cron schedule. The result is a time-series view of your API's traffic, payloads, and status codes without any per-route instrumentation.
+Laravel A-Ray's API health feature gives you continuous, low-overhead visibility into every HTTP request your application handles. Once enabled, A-Ray automatically captures request and response data for every route and batches it to the A-Ray platform on a configurable cron schedule via the `aray:requests-push-purge` Artisan command. The result is a time-series view of your API's traffic, payloads, and status codes without any per-route instrumentation.
 
 <Steps>
   <Step title="Enable the feature in your .env">
@@ -16,7 +16,7 @@ Laravel A-Ray's API health feature gives you continuous, low-overhead visibility
   </Step>
 
   <Step title="Run the database migration">
-    The middleware stores captured request/response pairs in an `aray_requests` table. If you have not already published and run the package migrations, do so now:
+    A-Ray stores captured request/response data locally before batching it to the platform. If you have not already run the package migrations, do so now:
 
     ```bash
     php artisan migrate
@@ -98,7 +98,7 @@ Some routes return or accept data that you do not want to record at all — for 
 
 ## Cron scheduling
 
-The `aray:requests-push-purge` command reads all rows from the `aray_requests` table, converts them into `REQUEST`-type pushes, sends them to A-Ray via `pushMultiple()`, and then truncates the table. The package registers this command with Laravel's scheduler automatically when `api_health.enabled` is `true`.
+The `aray:requests-push-purge` command collects all locally-stored request/response data, converts each entry into a `REQUEST`-type push, sends them to A-Ray via `pushMultiple()`, and then clears the local store. The package registers this command with Laravel's scheduler automatically when `api_health.enabled` is `true`.
 
 The default schedule is **every 5 minutes** (`*/5 * * * *`). Change it via the `A_RAY_API_HEALTH_CRON` environment variable:
 

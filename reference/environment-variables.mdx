@@ -1,7 +1,7 @@
 ---
-title: 'Environment Variables for Laravel A-Ray'
+title: 'Laravel A-Ray Environment Variables — Full Reference'
 sidebarTitle: 'Environment Variables'
-description: 'All environment variables accepted by Laravel A-Ray, with their default values, types, and descriptions for configuring pushes, error alerts, and API health.'
+description: 'All environment variables accepted by Laravel A-Ray, with defaults, types, and descriptions for configuring monitoring, error alerts, and API health.'
 ---
 
 All Laravel A-Ray behaviour is controlled through your `.env` file. The package reads these values through the `config/laravel-a-ray.php` config file, so you can also override any setting directly there — but the `.env` approach is recommended so secrets stay out of version control.
@@ -76,7 +76,7 @@ A_RAY_API_HEALTH_CRON=*/5 * * * *
 </ParamField>
 
 <ParamField path="A_RAY_API_HEALTH_ENABLED" type="boolean" default="false">
-  Activates the API health middleware, which captures incoming HTTP request and response data and stores it in the `aray_requests` table for later forwarding to A-Ray. When enabled, the `aray:requests-push-purge` command is also automatically scheduled.
+  Activates the API health middleware, which captures incoming HTTP request and response data and buffers it locally for later forwarding to A-Ray. When enabled, the `aray:requests-push-purge` command is also automatically scheduled.
 
   ```env
   A_RAY_API_HEALTH_ENABLED=true

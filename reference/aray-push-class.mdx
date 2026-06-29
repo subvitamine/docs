@@ -1,7 +1,7 @@
 ---
-title: 'ARayPush Class Reference for Laravel A-Ray'
+title: 'Complete ARayPush Class Reference | Laravel A-Ray SDK'
 sidebarTitle: 'ARayPush'
-description: 'Full reference for ARayPush — the push object you build by adding commits before sending it to A-Ray via the ARay facade in Laravel.'
+description: 'Complete reference for ARayPush — the monitoring event object you build with commits and send to A-Ray via the ARay facade in Laravel.'
 ---
 
 `ARayPush` represents a single monitoring event in A-Ray. Think of it as a container: you describe what happened by attaching one or more **commits** — each commit being a labelled snapshot of data with a status — and then you hand the finished push to `ARay::push()` or `ARay::pushMultiple()` to send it to the platform.
@@ -53,7 +53,7 @@ $push = ARay::initPush('Payment flow');
 
 ### addCommit()
 
-Adds a commit (a labelled data snapshot) to the push. Returns `$this`, so calls can be chained fluently. The method automatically captures the calling class name and line number via `debug_backtrace()` and stores them alongside the commit content for richer context in the dashboard.
+Adds a commit (a labelled data snapshot) to the push. Returns `$this`, so calls can be chained fluently. Each commit automatically records the source context it was called from, giving you richer, more navigable information in the A-Ray dashboard without any extra effort.
 
 <ParamField path="label" type="string" required>
   A short description of what this commit represents, e.g. `'Cart validated'`.
@@ -74,7 +74,7 @@ Adds a commit (a labelled data snapshot) to the push. Returns `$this`, so calls 
 **Returns:** `ARayPush` — the same instance, for fluent chaining.
 
 <Warning>
-  `addCommit()` throws an `\Exception` if you attempt to add more than **20 commits** to a single push. Split large flows across multiple pushes if needed.
+  `addCommit()` throws an `\Exception` if you attempt to add more than **21 commits** to a single push. Split large flows across multiple pushes if needed.
 </Warning>
 
 ---

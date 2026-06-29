@@ -1,10 +1,10 @@
 ---
-title: 'Artisan Commands Provided by Laravel A-Ray'
+title: 'Artisan Commands Complete Reference — Laravel A-Ray'
 sidebarTitle: 'Artisan Commands'
-description: 'Laravel A-Ray registers the aray:requests-push-purge Artisan command to batch-send captured API health data to A-Ray and clear the local database.'
+description: 'Reference for the aray:requests-push-purge Artisan command, which batch-sends buffered API health data to A-Ray and clears the local buffer.'
 ---
 
-Laravel A-Ray registers **one Artisan command** for managing captured API health data. When the API health middleware is active, incoming HTTP requests and their responses are stored in the `aray_requests` table. This command reads those records, ships them to A-Ray, and clears the table — keeping your database lightweight while keeping A-Ray up to date.
+Laravel A-Ray registers **one Artisan command** for managing captured API health data. When the API health middleware is active, incoming HTTP requests and their responses are buffered locally. This command reads that buffered data, ships it to A-Ray, and clears the buffer — keeping your local storage lightweight while keeping A-Ray up to date.
 
 ---
 
@@ -18,12 +18,12 @@ php artisan aray:requests-push-purge
 
 **Description**
 
-Reads all stored `ArayRequest` records, converts each one into a `REQUEST`-type `ARayPush`, sends them to A-Ray in a single batched call via `ARay::pushMultiple()`, and then truncates the `aray_requests` table.
+Reads all locally buffered request data, converts each record into a `REQUEST`-type `ARayPush`, sends them to A-Ray in a single batched call via `ARay::pushMultiple()`, and then clears the local buffer.
 
 ### Step-by-step behaviour
 
-1. **Fetch** — All rows from `aray_requests` are loaded into memory.
-2. **Truncate** — The `aray_requests` table is immediately cleared to prevent duplicate sends on retries.
+1. **Fetch** — All buffered request records are loaded into memory.
+2. **Clear** — The local buffer is immediately purged to prevent duplicate sends on retries.
 3. **Convert** — Each record is turned into an `ARayPush` with:
    - Type set to `'REQUEST'`
    - Meta containing `route`, `method`, and `url`
@@ -84,5 +84,5 @@ Or directly in the config file:
 </Note>
 
 <Warning>
-  This command **truncates** the `aray_requests` table immediately after loading the records, before sending them to A-Ray. If your A-Ray endpoint is unreachable at the time the command runs, the records will be lost. Ensure your `A_RAY_PRIVATE_KEY` is correct and your network can reach the A-Ray API before enabling this in production.
+  This command clears the local buffer **before** sending the data to A-Ray. If your A-Ray endpoint is unreachable at the time the command runs, the buffered records will be lost and cannot be recovered. Ensure your `A_RAY_PRIVATE_KEY` is correct and your network can reach the A-Ray API before enabling this in production.
 </Warning>
