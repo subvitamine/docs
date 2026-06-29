@@ -50,5 +50,12 @@
         ]
       }
     ]
+  },
+  "contextual": {
+    "options": [
+      "copy",
+      "view"
+    ],
+    "display": "toc"
   }
 }
